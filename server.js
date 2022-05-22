@@ -18,7 +18,27 @@ app.get('/api/departments', async(req, res, next) => {
     catch(ex){
         next(ex);
     }
-})
+});
+
+
+app.get('/api/employees', async(req, res, next) => {
+    try{
+        res.send(await Employee.findAll({
+            include: [
+                { model: Employee,
+                as: 'supervisor' 
+                },
+                Employee, //=== { model: Employee, //this creates array of all employees that belong to sup
+                // as: 'supervisees'
+                // }
+                Department
+            ]
+        }));
+    }
+    catch(ex){
+        next(ex);
+    }
+});
 
 const Department = conn.define('department', {
     name: {
@@ -40,17 +60,28 @@ const Employee = conn.define('employee', {
 Department.belongsTo(Employee, { as: 'manager' });
 Employee.hasMany(Department, { foreignKey: 'managerId' }); //assigning the foreign insures that there's only one (manager) id
 
+Employee.belongsTo(Employee, { as: 'supervisor' });//creates fk for supervisor
+Employee.hasMany(Employee, { foreignKey: 'supervisorId' /*, as: 'supervisees' -- taken our since model was removed*/});
+
 const syncAndSeed = async() => {
     await conn.sync({ force: true });
-    const [moe, lucy, hr, engineering] = await Promise.all([
+    const [moe, lucy, larry, hr, engineering] = await Promise.all([
         Employee.create({ name: 'moe' }),
         Employee.create({ name: 'lucy' }),
+        Employee.create({ name: 'larry' }),
         Department.create({ name: 'hr' }),
         Department.create({ name: 'engineering' }),
     ]);
 
     hr.managerId = lucy.id;
     await hr.save();
+    //console.log(JSON.stringify(hr, null, 2)); //this stringifies, and additional paramaters make it show up neatly like an object
+    moe.supervisorId = lucy.id;
+    larry.supervisorId = lucy.id;
+    await Promise.all([
+        moe.save(),
+        larry.save()
+    ]);
     //console.log(JSON.stringify(hr, null, 2)); //this stringifies, and additional paramaters make it show up neatly like an object
 
 }; 
